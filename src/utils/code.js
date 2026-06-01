@@ -1,0 +1,5 @@
+export const extractCodeBlock = (response = '') => {
+  const match = response.match(/```(?:\w+)?\n?([\s\S]*?)```/);
+
+  return match ? match[1].trim() : response.trim();
+};

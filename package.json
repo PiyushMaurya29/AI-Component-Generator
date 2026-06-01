@@ -1,7 +1,8 @@
 {
-  "name": "ai-com-gen",
+  "name": "ai-component-generator",
   "private": true,
   "version": "0.0.0",
+  "description": "AI-powered UI component generator with live code editing, preview, copy, and export workflows.",
   "type": "module",
   "scripts": {
     "dev": "vite",

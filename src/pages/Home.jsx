@@ -1,5 +1,3 @@
-import React, { useState } from 'react'
-import Navbar from '../components/Navbar'
 import Select from 'react-select';
 import { BsStars } from 'react-icons/bs';
 import { HiOutlineCode } from 'react-icons/hi';
@@ -8,240 +6,231 @@ import { IoCloseSharp, IoCopy } from 'react-icons/io5';
 import { PiExportBold } from 'react-icons/pi';
 import { ImNewTab } from 'react-icons/im';
 import { FiRefreshCcw } from 'react-icons/fi';
-import { GoogleGenAI } from "@google/genai";
 import { ClipLoader } from 'react-spinners';
 import { toast } from 'react-toastify';
+import { useState } from 'react';
+import Navbar from '../components/Navbar';
+import { buildComponentPrompt, FRAMEWORK_OPTIONS, GEMINI_MODEL } from '../constants/generator';
+import { geminiClient, hasGeminiApiKey } from '../services/geminiClient';
+import { extractCodeBlock } from '../utils/code';
+
+const selectStyles = {
+  control: (base) => ({
+    ...base,
+    backgroundColor: '#111',
+    borderColor: '#333',
+    color: '#fff',
+    boxShadow: 'none',
+    '&:hover': { borderColor: '#555' },
+  }),
+  menu: (base) => ({
+    ...base,
+    backgroundColor: '#111',
+    color: '#fff',
+  }),
+  option: (base, state) => ({
+    ...base,
+    backgroundColor: state.isSelected ? '#333' : state.isFocused ? '#222' : '#111',
+    color: '#fff',
+    '&:active': { backgroundColor: '#444' },
+  }),
+  singleValue: (base) => ({ ...base, color: '#fff' }),
+  placeholder: (base) => ({ ...base, color: '#aaa' }),
+  input: (base) => ({ ...base, color: '#fff' }),
+};
 
 const Home = () => {
-
-  // ✅ Fixed typos in options
-  const options = [
-    { value: 'html-css', label: 'HTML + CSS' },
-    { value: 'html-tailwind', label: 'HTML + Tailwind CSS' },
-    { value: 'html-bootstrap', label: 'HTML + Bootstrap' },
-    { value: 'html-css-js', label: 'HTML + CSS + JS' },
-    { value: 'html-tailwind-bootstrap', label: 'HTML + Tailwind + Bootstrap' },
-  ];
-
   const [outputScreen, setOutputScreen] = useState(false);
   const [tab, setTab] = useState(1);
-  const [prompt, setPrompt] = useState("");
-  const [frameWork, setFrameWork] = useState(options[0]);
-  const [code, setCode] = useState("");
+  const [prompt, setPrompt] = useState('');
+  const [framework, setFramework] = useState(FRAMEWORK_OPTIONS[0]);
+  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isNewTabOpen, setIsNewTabOpen] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // ✅ Extract code safely
-  function extractCode(response) {
-    const match = response.match(/```(?:\w+)?\n?([\s\S]*?)```/);
-    return match ? match[1].trim() : response.trim();
-  }
+  const generateComponent = async () => {
+    if (!prompt.trim()) {
+      toast.error('Please describe your component first');
+      return;
+    }
 
-  // ⚠️ API Key (you said you want it inside the file)
-  const ai = new GoogleGenAI({
-    apiKey: "AIzaSyCDPVBgFEPfi0gvNzbmewHKMD3po9qMfRs"
-  });
-
-  // ✅ Generate code
-  async function getResponse() {
-    if (!prompt.trim()) return toast.error("Please describe your component first");
+    if (!hasGeminiApiKey) {
+      toast.error('Missing Gemini API key. Add VITE_GEMINI_API_KEY to your .env file.');
+      return;
+    }
 
     try {
       setLoading(true);
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: `
-     You are an experienced programmer with expertise in web development and UI/UX design. You create modern, animated, and fully responsive UI components. You are highly skilled in HTML, CSS, Tailwind CSS, Bootstrap, JavaScript, React, Next.js, Vue.js, Angular, and more.
-
-Now, generate a UI component for: ${prompt}  
-Framework to use: ${frameWork.value}  
-
-Requirements:  
-- The code must be clean, well-structured, and easy to understand.  
-- Optimize for SEO where applicable.  
-- Focus on creating a modern, animated, and responsive UI design.  
-- Include high-quality hover effects, shadows, animations, colors, and typography.  
-- Return ONLY the code, formatted properly in **Markdown fenced code blocks**.  
-- Do NOT include explanations, text, comments, or anything else besides the code.  
-- And give the whole code in a single HTML file.
-      `,
+      const response = await geminiClient.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: buildComponentPrompt({
+          prompt: prompt.trim(),
+          framework: framework.value,
+        }),
       });
 
-      setCode(extractCode(response.text));
+      setCode(extractCodeBlock(response.text));
       setOutputScreen(true);
     } catch (error) {
       console.error(error);
-      toast.error("Something went wrong while generating code");
+      toast.error('Something went wrong while generating code');
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Copy Code
   const copyCode = async () => {
-    if (!code.trim()) return toast.error("No code to copy");
+    if (!code.trim()) {
+      toast.error('No code to copy');
+      return;
+    }
+
     try {
       await navigator.clipboard.writeText(code);
-      toast.success("Code copied to clipboard");
-    } catch (err) {
-      console.error('Failed to copy: ', err);
-      toast.error("Failed to copy");
+      toast.success('Code copied to clipboard');
+    } catch (error) {
+      console.error('Failed to copy: ', error);
+      toast.error('Failed to copy');
     }
   };
 
-  // ✅ Download Code
-  const downnloadFile = () => {
-    if (!code.trim()) return toast.error("No code to download");
+  const downloadFile = () => {
+    if (!code.trim()) {
+      toast.error('No code to download');
+      return;
+    }
 
-    const fileName = "GenUI-Code.html"
-    const blob = new Blob([code], { type: 'text/plain' });
-    let url = URL.createObjectURL(blob);
+    const blob = new Blob([code], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
+
     link.href = url;
-    link.download = fileName;
+    link.download = 'GenUI-Code.html';
     link.click();
     URL.revokeObjectURL(url);
-    toast.success("File downloaded");
+    toast.success('File downloaded');
   };
 
   return (
     <>
       <Navbar />
 
-      {/* ✅ Better responsive layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-6 lg:px-16">
-        {/* Left Section */}
-        <div className="w-full py-6 rounded-xl bg-[#141319] mt-5 p-5">
-          <h3 className='text-[25px] font-semibold sp-text'>AI UI Component Maker</h3>
-          <p className='text-gray-400 mt-2 text-[16px]'>Describe your component and let AI code it for you.</p>
+      <main className="grid grid-cols-1 gap-6 px-6 lg:grid-cols-2 lg:px-16">
+        <section className="mt-5 w-full rounded-xl bg-[#141319] p-5 py-6">
+          <h2 className='sp-text text-[25px] font-semibold'>AI UI Component Maker</h2>
+          <p className='mt-2 text-[16px] text-gray-400'>Describe your component and let AI code it for you.</p>
 
-          <p className='text-[15px] font-[700] mt-4'>Framework</p>
+          <label className='mt-4 block text-[15px] font-[700]' htmlFor="framework-select">Framework</label>
           <Select
+            inputId="framework-select"
             className='mt-2'
-            options={options}
-            value={frameWork}
-            styles={{
-              control: (base) => ({
-                ...base,
-                backgroundColor: "#111",
-                borderColor: "#333",
-                color: "#fff",
-                boxShadow: "none",
-                "&:hover": { borderColor: "#555" }
-              }),
-              menu: (base) => ({
-                ...base,
-                backgroundColor: "#111",
-                color: "#fff"
-              }),
-              option: (base, state) => ({
-                ...base,
-                backgroundColor: state.isSelected
-                  ? "#333"
-                  : state.isFocused
-                    ? "#222"
-                    : "#111",
-                color: "#fff",
-                "&:active": { backgroundColor: "#444" }
-              }),
-              singleValue: (base) => ({ ...base, color: "#fff" }),
-              placeholder: (base) => ({ ...base, color: "#aaa" }),
-              input: (base) => ({ ...base, color: "#fff" })
-            }}
-            onChange={(selected) => setFrameWork(selected)}
+            options={FRAMEWORK_OPTIONS}
+            value={framework}
+            styles={selectStyles}
+            onChange={(selected) => setFramework(selected ?? FRAMEWORK_OPTIONS[0])}
           />
 
-          <p className='text-[15px] font-[700] mt-5'>Describe your component</p>
+          <label className='mt-5 block text-[15px] font-[700]' htmlFor="component-prompt">
+            Describe your component
+          </label>
           <textarea
-            onChange={(e) => setPrompt(e.target.value)}
+            id="component-prompt"
+            onChange={(event) => setPrompt(event.target.value)}
             value={prompt}
-            className='w-full min-h-[200px] rounded-xl bg-[#09090B] mt-3 p-3 text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-purple-500 resize-none'
+            className='mt-3 min-h-[200px] w-full resize-none rounded-xl bg-[#09090B] p-3 text-white outline-none placeholder:text-gray-400 focus:ring-2 focus:ring-purple-500'
             placeholder="Describe your component in detail and AI will generate it..."
-          ></textarea>
+          />
 
-          <div className="flex items-center justify-between mt-3">
-            <p className='text-gray-400 text-sm'>Click on generate button to get your code</p>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className='text-sm text-gray-400'>Click generate to create your component code.</p>
             <button
-              onClick={getResponse}
-              className="flex items-center p-3 rounded-lg border-0 bg-gradient-to-r from-purple-400 to-purple-600 px-5 gap-2 transition-all hover:opacity-80 hover:scale-105 active:scale-95"
+              onClick={generateComponent}
+              type="button"
+              disabled={loading}
+              className="flex items-center justify-center gap-2 rounded-lg border-0 bg-gradient-to-r from-purple-400 to-purple-600 px-5 py-3 transition-all hover:scale-105 hover:opacity-80 active:scale-95 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {loading ? <ClipLoader color='white' size={18} /> : <BsStars />}
               Generate
             </button>
           </div>
-        </div>
+        </section>
 
-        {/* Right Section */}
-        <div className="relative mt-2 w-full h-[80vh] bg-[#141319] rounded-xl overflow-hidden">
-          {
-            !outputScreen ? (
-              <div className="w-full h-full flex items-center flex-col justify-center">
-                <div className="p-5 w-[70px] flex items-center justify-center text-[30px] h-[70px] rounded-full bg-gradient-to-r from-purple-400 to-purple-600">
-                  <HiOutlineCode />
-                </div>
-                <p className='text-[16px] text-gray-400 mt-3'>Your component & code will appear here.</p>
+        <section className="relative mt-2 h-[80vh] w-full overflow-hidden rounded-xl bg-[#141319]">
+          {!outputScreen ? (
+            <div className="flex h-full w-full flex-col items-center justify-center px-6 text-center">
+              <div className="flex h-[70px] w-[70px] items-center justify-center rounded-full bg-gradient-to-r from-purple-400 to-purple-600 p-5 text-[30px]">
+                <HiOutlineCode />
               </div>
-            ) : (
-              <>
-                {/* Tabs */}
-                <div className="bg-[#17171C] w-full h-[50px] flex items-center gap-3 px-3">
-                  <button
-                    onClick={() => setTab(1)}
-                    className={`w-1/2 py-2 rounded-lg transition-all ${tab === 1 ? "bg-purple-600 text-white" : "bg-zinc-800 text-gray-300"}`}
-                  >
-                    Code
-                  </button>
-                  <button
-                    onClick={() => setTab(2)}
-                    className={`w-1/2 py-2 rounded-lg transition-all ${tab === 2 ? "bg-purple-600 text-white" : "bg-zinc-800 text-gray-300"}`}
-                  >
-                    Preview
-                  </button>
-                </div>
+              <p className='mt-3 text-[16px] text-gray-400'>Your component and code will appear here.</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex h-[50px] w-full items-center gap-3 bg-[#17171C] px-3">
+                <button
+                  onClick={() => setTab(1)}
+                  type="button"
+                  className={`w-1/2 rounded-lg py-2 transition-all ${tab === 1 ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-gray-300'}`}
+                >
+                  Code
+                </button>
+                <button
+                  onClick={() => setTab(2)}
+                  type="button"
+                  className={`w-1/2 rounded-lg py-2 transition-all ${tab === 2 ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-gray-300'}`}
+                >
+                  Preview
+                </button>
+              </div>
 
-                {/* Toolbar */}
-                <div className="bg-[#17171C] w-full h-[50px] flex items-center justify-between px-4">
-                  <p className='font-bold text-gray-200'>Code Editor</p>
-                  <div className="flex items-center gap-2">
-                    {tab === 1 ? (
-                      <>
-                        <button onClick={copyCode} className="w-10 h-10 rounded-xl border border-zinc-800 flex items-center justify-center hover:bg-[#333]"><IoCopy /></button>
-                        <button onClick={downnloadFile} className="w-10 h-10 rounded-xl border border-zinc-800 flex items-center justify-center hover:bg-[#333]"><PiExportBold /></button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={() => setIsNewTabOpen(true)} className="w-10 h-10 rounded-xl border border-zinc-800 flex items-center justify-center hover:bg-[#333]"><ImNewTab /></button>
-                        <button onClick={() => setRefreshKey(prev => prev + 1)} className="w-10 h-10 rounded-xl border border-zinc-800 flex items-center justify-center hover:bg-[#333]"><FiRefreshCcw /></button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Editor / Preview */}
-                <div className="h-full">
+              <div className="flex h-[50px] w-full items-center justify-between bg-[#17171C] px-4">
+                <p className='font-bold text-gray-200'>Code Editor</p>
+                <div className="flex items-center gap-2">
                   {tab === 1 ? (
-                    <Editor value={code} height="100%" theme='vs-dark' language="html" />
+                    <>
+                      <button onClick={copyCode} type="button" aria-label="Copy code" className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 hover:bg-[#333]"><IoCopy /></button>
+                      <button onClick={downloadFile} type="button" aria-label="Download code" className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 hover:bg-[#333]"><PiExportBold /></button>
+                    </>
                   ) : (
-                    <iframe key={refreshKey} srcDoc={code} className="w-full h-full bg-white text-black"></iframe>
+                    <>
+                      <button onClick={() => setIsPreviewOpen(true)} type="button" aria-label="Open fullscreen preview" className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 hover:bg-[#333]"><ImNewTab /></button>
+                      <button onClick={() => setRefreshKey((prev) => prev + 1)} type="button" aria-label="Refresh preview" className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 hover:bg-[#333]"><FiRefreshCcw /></button>
+                    </>
                   )}
                 </div>
-              </>
-            )
-          }
-        </div>
-      </div>
+              </div>
 
-      {/* ✅ Fullscreen Preview Overlay */}
-      {isNewTabOpen && (
-        <div className="absolute inset-0 bg-white w-screen h-screen overflow-auto">
-          <div className="text-black w-full h-[60px] flex items-center justify-between px-5 bg-gray-100">
+              <div className="h-full">
+                {tab === 1 ? (
+                  <Editor value={code} height="100%" theme='vs-dark' language="html" />
+                ) : (
+                  <iframe
+                    key={refreshKey}
+                    title="Generated component preview"
+                    srcDoc={code}
+                    className="h-full w-full bg-white text-black"
+                  />
+                )}
+              </div>
+            </>
+          )}
+        </section>
+      </main>
+
+      {isPreviewOpen && (
+        <div className="absolute inset-0 h-screen w-screen overflow-auto bg-white">
+          <div className="flex h-[60px] w-full items-center justify-between bg-gray-100 px-5 text-black">
             <p className='font-bold'>Preview</p>
-            <button onClick={() => setIsNewTabOpen(false)} className="w-10 h-10 rounded-xl border border-zinc-300 flex items-center justify-center hover:bg-gray-200">
+            <button
+              onClick={() => setIsPreviewOpen(false)}
+              type="button"
+              aria-label="Close fullscreen preview"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-300 hover:bg-gray-200"
+            >
               <IoCloseSharp />
             </button>
           </div>
-          <iframe srcDoc={code} className="w-full h-[calc(100vh-60px)]"></iframe>
+          <iframe title="Generated component fullscreen preview" srcDoc={code} className="h-[calc(100vh-60px)] w-full" />
         </div>
       )}
     </>

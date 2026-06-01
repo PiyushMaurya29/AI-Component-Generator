@@ -1,22 +1,19 @@
-import React from 'react'
 import { FaUser } from 'react-icons/fa'
 import { HiSun } from 'react-icons/hi'
 import { RiSettings3Fill } from 'react-icons/ri'
 
 const Navbar = () => {
   return (
-    <>
-      <div className="nav flex items-center justify-between px-[100px] h-[90px] border-b-[1px] border-gray-800">
-        <div className="logo">
-         <h3 className='text-[25px] font-[700] sp-text'>GenUI</h3>
-        </div>
-        <div className="icons flex items-center gap-[15px]">
-          <div className="icon"><HiSun /></div>
-          <div className="icon"><FaUser /></div>
-          <div className="icon"><RiSettings3Fill /></div>
-        </div>
+    <header className="nav flex h-[90px] items-center justify-between border-b border-gray-800 px-6 sm:px-10 lg:px-[100px]">
+      <div className="logo">
+        <h1 className='sp-text text-[25px] font-[700]'>GenUI</h1>
       </div>
-    </>
+      <nav className="icons flex items-center gap-[15px]" aria-label="Application shortcuts">
+        <button className="icon" type="button" aria-label="Toggle theme"><HiSun /></button>
+        <button className="icon" type="button" aria-label="User profile"><FaUser /></button>
+        <button className="icon" type="button" aria-label="Settings"><RiSettings3Fill /></button>
+      </nav>
+    </header>
   )
 }
 
