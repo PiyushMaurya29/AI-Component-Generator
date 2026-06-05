@@ -17,6 +17,7 @@ GenUI is a React + Vite web app that turns natural-language UI prompts into comp
 - React 19
 - Vite 7
 - Tailwind CSS
+
 - Google Gemini API via `@google/genai`
 - Monaco Editor
 - React Select
